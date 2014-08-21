@@ -130,9 +130,8 @@ struct GraphicsResources {
     VertexArray cube_vao;
 };
 
-inline void draw_cube(const Uniforms& uniforms, VertexArray& vao, glm::mat4 transform, float scale) {
+inline void draw_cube(const Uniforms& uniforms, VertexArray& vao, glm::mat4 transform) {
     glm::mat4 proj = glm::perspective(45.0f, 1.0f, 0.1f, 100.f);
-    transform = glm::scale(transform, glm::vec3(scale, scale, scale));
     auto world_proj = proj * transform;
 
     glUniformMatrix4fv(uniforms.world, 1, GL_FALSE, glm::value_ptr(transform));
@@ -211,8 +210,8 @@ Graphics::~Graphics() {
     SDL_DestroyWindow(this->window);
 }
 
-void Graphics::add_cube(const glm::mat4& transform, float scale) {
-    this->cubes.push_back(Cube{transform, scale});
+void Graphics::add_cube(const glm::mat4& transform) {
+    this->cubes.push_back(Cube{transform});
 }
 
 void Graphics::render() {
@@ -221,7 +220,7 @@ void Graphics::render() {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glUniform3f(this->uniforms.light_pos, 1.0f, 0.0f, 0.0f);
     for (const Cube& cube : this->cubes) {
-        draw_cube(this->uniforms, res->cube_vao, cube.transform, cube.scale);
+        draw_cube(this->uniforms, res->cube_vao, cube.transform);
     }
     SDL_GL_SwapWindow(this->window);
     check_gl_error("after render");

@@ -4,7 +4,8 @@
 
 #include <glm/gtc/type_ptr.hpp>
 
-#include <forward_list>
+#include <thread>
+#include <mutex>
 
 using std::vector;
 
@@ -17,21 +18,19 @@ inline glm::mat4 transform_to_matrix(btTransform transform) {
 }
 
 struct MotionState : public btMotionState {
-    MotionState() {}
-    MotionState(btTransform t) : transform(t) {}
+    MotionState(btTransform t, ObjectId id, World* w) : transform(t), object_id(id), world(w) {}
     virtual ~MotionState() {}
 
     btTransform transform;
-    std::function<void(glm::mat4)> callback;
+    ObjectId object_id;
+    World* world;
 
     virtual void getWorldTransform(btTransform& worldTrans) const {
         worldTrans = transform;
     }
     virtual void setWorldTransform(const btTransform& worldTrans) {
         transform = worldTrans;
-        if (callback) {
-            callback(transform_to_matrix(transform));
-        }
+        world->update_change(object_id, transform_to_matrix(transform));
     }
 };
 
@@ -40,9 +39,11 @@ struct Box {
     MotionState state;
 };
 
+enum WorldStatus {
+    Idle, Running, Stopping
+};
+
 struct WorldRes {
-    unique_ptr<btBoxShape> ground;
-    MotionState ground_state;
     vector<unique_ptr<Box>> boxes;
     vector<unique_ptr<btRigidBody>> bodies;
 
@@ -52,6 +53,10 @@ struct WorldRes {
     unique_ptr<btSequentialImpulseConstraintSolver> solver;
     unique_ptr<btDiscreteDynamicsWorld> world;
 
+    std::mutex changes_mutex;
+    std::thread thread;
+    WorldStatus status;
+
     WorldRes() {
         broadphase.reset(new btDbvtBroadphase());
         collision_config.reset(new btDefaultCollisionConfiguration());
@@ -60,7 +65,7 @@ struct WorldRes {
         world.reset(new btDiscreteDynamicsWorld(
                     dispatcher.get(), broadphase.get(), solver.get(),
                     collision_config.get()));
-        ground.reset(new btBoxShape(btVector3(50, 50, 50)));
+        status = Idle;
     }
 };
 
@@ -68,38 +73,19 @@ World::World() {
     this->res = new WorldRes;
 
     res->world->setGravity(btVector3(0, -10, 0));
-
-    res->ground_state.transform.setIdentity();
-    res->ground_state.transform.setOrigin(btVector3(0, -50, 0));
-
-    // static ground
-    btScalar ground_mass(0.0);
-    btVector3 local_inertia(0.0, 0.0, 0.0);
-
-    unique_ptr<btRigidBody> body(new btRigidBody(
-                btRigidBody::btRigidBodyConstructionInfo(
-                    ground_mass, &res->ground_state,
-                    res->ground.get(), local_inertia)));
-    res->world->addRigidBody(body.get());
-    res->bodies.push_back(move(body));
 }
 
 World::~World() {
+    stop();
     delete res;
 }
 
-void World::add_cube(glm::vec3 pos, float scale,
-        std::function<void(glm::mat4)> transform_changed) {
-
-    btScalar mass(scale*scale*scale);
-
-    btTransform transform;
-    transform.setIdentity();
-    transform.setOrigin(btVector3(pos.x, pos.y, pos.z));
+void World::add_cube(ObjectId id, glm::mat4 transform, float mass, float x, float y, float z) {
+    btTransform trans;
+    trans.setFromOpenGLMatrix(glm::value_ptr(transform));
     unique_ptr<Box> box(new Box{
-            btBoxShape(btVector3(scale, scale, scale)),
-            MotionState{transform} });
-    box->state.callback = transform_changed;
+            btBoxShape(btVector3(x, y, z)),
+            MotionState{trans, id, this} });
 
     btVector3 inertia(0,0,0);
     box->shape.calculateLocalInertia(mass, inertia);
@@ -114,8 +100,67 @@ void World::add_cube(glm::vec3 pos, float scale,
     res->bodies.push_back(move(body));
 }
 
-void World::step() {
-    res->world->stepSimulation(1.0f/60.0f, 10);
+
+std::map<ObjectId, glm::mat4> World::get_and_reset_changes() {
+    std::map<ObjectId, glm::mat4> result;
+    std::lock_guard<std::mutex> lock(res->changes_mutex);
+    this->changes.swap(result);
+    return result;
+}
+
+void World::update_change(ObjectId id, const glm::mat4& change) {
+    std::lock_guard<std::mutex> lock(res->changes_mutex);
+    changes[id] = change;
+}
+
+void World::single_step() {
+    // step single fixed time
+    this->res->world->stepSimulation(1.0/60.0, 0);
+}
+
+void World::run() {
+    WorldStatus status = res->status;
+    if (status == Running) {
+        // thread already running, do nothing
+        return;
+    } else if (status == Stopping) {
+        // wait for thread to stop before starting it again
+        res->thread.join();
+    }
+
+    // start the thread
+    assert(res->status == Idle);
+    res->status = Running;
+    res->thread = std::thread([this]() {
+        // our goal is to step once per 1/60 secs
+        // if the simulation is too slow, then tough luck
+        // excessive time is spent in sleep
+        const auto step_time = std::chrono::milliseconds(1000/60);
+        while (this->res->status == Running) {
+            auto start_time = std::chrono::steady_clock::now();
+            single_step();
+
+            if (this->res->status == Running) {
+                std::this_thread::sleep_until(start_time + step_time);
+            }
+        }
+        assert(this->res->status == Stopping);
+        this->res->status = Idle;
+    });
+}
+
+void World::pause() {
+    if (res->status == Running) {
+        res->status = Stopping;
+    }
+}
+
+void World::stop() {
+    if (res->status == Running) {
+        pause();
+        res->thread.join();
+        assert(res->status == Idle);
+    }
 }
 
 void World::printworld() {

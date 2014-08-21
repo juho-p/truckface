@@ -7,7 +7,6 @@ class SDL_Window;
 namespace gfx {
     struct Cube {
         glm::mat4 transform;
-        float scale;
     };
 
     struct Uniforms {
@@ -29,7 +28,7 @@ namespace gfx {
         Graphics();
         ~Graphics();
 
-        void add_cube(const glm::mat4& transform, float scale);
+        void add_cube(const glm::mat4& transform);
         void set_transform(unsigned int index, const glm::mat4& transform);
         void render();
     };
