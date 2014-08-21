@@ -7,7 +7,7 @@ AddOption(
     help='debug build',
     default=False)
 
-common_flags = '-std=c++11 -Wall -Wextra -isystem libraries/bullet '
+common_flags = '-std=c++11 -Wall -Wextra -isystem libraries/bullet -isystem libraries/lua '
 if GetOption('debug_build'):
     flags = common_flags + '-g -O0'
 else:
@@ -52,7 +52,16 @@ def bullet_builds():
                     sources.append(os.path.join(root, filename))
         libs.append(env.StaticLibrary('libraries/'+bulletlib, sources))
     return libs
+def lua_builds():
+    filenames = '''lapi.c lcode.c lctype.c ldebug.c ldo.c ldump.c lfunc.c
+lgc.c llex.c lmem.c lobject.c lopcodes.c lparser.c lstate.c lstring.c
+ltable.c ltm.c lundump.c lvm.c lzio.c lauxlib.c lbaselib.c lbitlib.c
+lcorolib.c ldblib.c liolib.c lmathlib.c loslib.c lstrlib.c ltablib.c
+loadlib.c linit.c'''.split()
+    sources = ['libraries/lua/' + f for f in filenames]
+    return [env.StaticLibrary('libraries/lua.a', sources)]
 
 if 'libraries' in COMMAND_LINE_TARGETS:
-    bulletlibs = bullet_builds()
-    env.Alias('libraries', bulletlibs)
+    libs = bullet_builds()
+    libs += lua_builds()
+    env.Alias('libraries', libs)
