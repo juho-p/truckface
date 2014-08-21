@@ -130,9 +130,10 @@ struct GraphicsResources {
     VertexArray cube_vao;
 };
 
-inline void draw_cube(const Uniforms& uniforms, VertexArray& vao, glm::mat4 transform) {
+inline void draw_cube(const Uniforms& uniforms, VertexArray& vao,
+        glm::mat4 transform, glm::vec3 scale) {
     glm::mat4 proj = glm::perspective(45.0f, 1.0f, 0.1f, 100.f);
-    auto world_proj = proj * transform;
+    auto world_proj = proj * glm::scale(transform, scale);
 
     glUniformMatrix4fv(uniforms.world, 1, GL_FALSE, glm::value_ptr(transform));
     glUniformMatrix4fv(uniforms.world_projection, 1, GL_FALSE, glm::value_ptr(world_proj));
@@ -210,8 +211,12 @@ Graphics::~Graphics() {
     SDL_DestroyWindow(this->window);
 }
 
-void Graphics::add_cube(const glm::mat4& transform) {
-    this->cubes.push_back(Cube{transform});
+void Graphics::add_cube(ObjectId id, const glm::mat4& transform,
+        float x, float y, float z) {
+    this->cubes.emplace(std::make_pair(id, Cube{ transform, glm::vec3(x, y, z) }));
+}
+void Graphics::remove(ObjectId id) {
+    this->cubes.erase(id);
 }
 
 void Graphics::render() {
@@ -219,8 +224,9 @@ void Graphics::render() {
     res->program.activate();
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glUniform3f(this->uniforms.light_pos, 1.0f, 0.0f, 0.0f);
-    for (const Cube& cube : this->cubes) {
-        draw_cube(this->uniforms, res->cube_vao, cube.transform);
+    for (const auto& kv : this->cubes) {
+        const Cube& c = kv.second;
+        draw_cube(this->uniforms, res->cube_vao, c.transform, c.scale);
     }
     SDL_GL_SwapWindow(this->window);
     check_gl_error("after render");

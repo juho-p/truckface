@@ -1,12 +1,13 @@
 #include "../game.hpp"
 
-#include <vector>
+#include <map>
 
 class SDL_Window;
 
 namespace gfx {
     struct Cube {
         glm::mat4 transform;
+        glm::vec3 scale;
     };
 
     struct Uniforms {
@@ -15,7 +16,7 @@ namespace gfx {
 
     class GraphicsResources;
     class Graphics : NoCopy {
-        std::vector<Cube> cubes;
+        std::map<ObjectId, Cube> cubes;
         SDL_Window* window;
         void* gl_context;
         Uniforms uniforms;
@@ -28,8 +29,10 @@ namespace gfx {
         Graphics();
         ~Graphics();
 
-        void add_cube(const glm::mat4& transform);
-        void set_transform(unsigned int index, const glm::mat4& transform);
+        void add_cube(ObjectId id, const glm::mat4& transform,
+                float x=1.f, float y=1.f, float z=1.f);
+        void remove(ObjectId id);
+        void set_transform(ObjectId id, const glm::mat4& transform);
         void render();
     };
 

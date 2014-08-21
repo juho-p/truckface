@@ -7,7 +7,7 @@
 #include <thread>
 #include <mutex>
 
-using std::vector;
+#include <unordered_map>
 
 namespace physics {
 
@@ -34,9 +34,10 @@ struct MotionState : public btMotionState {
     }
 };
 
-struct Box {
-    btBoxShape shape;
-    MotionState state;
+struct Cube {
+    unique_ptr<btBoxShape> shape;
+    unique_ptr<MotionState> state;
+    unique_ptr<btRigidBody> body;
 };
 
 enum WorldStatus {
@@ -44,8 +45,7 @@ enum WorldStatus {
 };
 
 struct WorldRes {
-    vector<unique_ptr<Box>> boxes;
-    vector<unique_ptr<btRigidBody>> bodies;
+    std::unordered_map<ObjectId, Cube> cubes;
 
     unique_ptr<btBroadphaseInterface> broadphase;
     unique_ptr<btCollisionDispatcher> dispatcher;
@@ -83,21 +83,29 @@ World::~World() {
 void World::add_cube(ObjectId id, glm::mat4 transform, float mass, float x, float y, float z) {
     btTransform trans;
     trans.setFromOpenGLMatrix(glm::value_ptr(transform));
-    unique_ptr<Box> box(new Box{
-            btBoxShape(btVector3(x, y, z)),
-            MotionState{trans, id, this} });
 
+    unique_ptr<MotionState> state(new MotionState(trans, id, this));
+
+    unique_ptr<btBoxShape> shape(new btBoxShape(btVector3(x, y, z)));
     btVector3 inertia(0,0,0);
-    box->shape.calculateLocalInertia(mass, inertia);
+    shape->calculateLocalInertia(mass, inertia);
 
-    btRigidBody::btRigidBodyConstructionInfo body_ci(
-            mass, &box->state, &box->shape, inertia);
-    unique_ptr<btRigidBody> body(new btRigidBody(body_ci));
+    unique_ptr<btRigidBody> body(new btRigidBody(
+                btRigidBody::btRigidBodyConstructionInfo(
+                    mass, state.get(), shape.get(), inertia)));
 
-    res->boxes.push_back(move(box));
+    auto it = res->cubes.emplace(
+            std::make_pair(id,
+                Cube{ move(shape), move(state), move(body) }));
+    res->world->addRigidBody(it.first->second.body.get());
+}
 
-    res->world->addRigidBody(body.get());
-    res->bodies.push_back(move(body));
+void World::remove(ObjectId id) {
+    auto cube = res->cubes.find(id);
+    if (cube != res->cubes.end()) {
+        res->world->removeRigidBody(cube->second.body.get());
+        res->cubes.erase(cube);
+    }
 }
 
 
@@ -114,6 +122,12 @@ void World::update_change(ObjectId id, const glm::mat4& change) {
 }
 
 void World::single_step() {
+    // only allow calling this when the thread is not running
+    assert(res->status == Idle);
+    single_step_();
+}
+
+void World::single_step_() {
     // step single fixed time
     this->res->world->stepSimulation(1.0/60.0, 0);
 }
@@ -138,7 +152,7 @@ void World::run() {
         const auto step_time = std::chrono::milliseconds(1000/60);
         while (this->res->status == Running) {
             auto start_time = std::chrono::steady_clock::now();
-            single_step();
+            single_step_();
 
             if (this->res->status == Running) {
                 std::this_thread::sleep_until(start_time + step_time);
