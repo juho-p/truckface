@@ -1,5 +1,5 @@
 #include "gfx.hpp"
-#include "../util.hpp"
+#include "../util/file.hpp"
 
 #define GL_GLEXT_PROTOTYPES
 #include <GL/gl.h>

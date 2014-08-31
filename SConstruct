@@ -20,7 +20,7 @@ env = Environment(
 
 game = env.Program(
     'game',
-    src('main.cpp gfx/gfx.cpp physics/world.cpp util.cpp'),
+    src('main.cpp gfx/gfx.cpp physics/world.cpp util/util.cpp'),
     LIBS = ['GL', 'SDL2', 'BulletDynamics', 'BulletCollision', 'LinearMath']
 )
 env.Default(game)
@@ -29,7 +29,7 @@ env.Default(game)
 tests = [
     env.Program(
         file.path[:-4],
-        src('util.cpp physics/world.cpp ' + file.path),
+        src('util/util.cpp physics/world.cpp ' + file.path),
         LIBS = ['BulletDynamics', 'BulletCollision', 'LinearMath'])
     for file in Glob('tests/test-*.cpp')]
 

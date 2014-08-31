@@ -15,11 +15,11 @@ namespace physics {
         World();
         ~World();
 
-        /** Add a box to the world */
+        /** Add a box to the world, can be called from other threads*/
         void add_cube(ObjectId id, glm::mat4 transform, float mass, float x=1.f, float y=1.f, float z=1.f);
         void remove(ObjectId id);
 
-        /** Get the changes to objects */
+        /** Get the changes to objects, can be called from other threads */
         std::map<ObjectId, glm::mat4> get_and_reset_changes();
 
         /** Perform single simulation step */
@@ -28,10 +28,10 @@ namespace physics {
         /** Start running simulation in the background */
         void run();
 
-        /** Pause background simulation */
+        /** Pause background simulation, callable from other threads */
         void pause();
 
-        /** Stop and wait for background simulation to die */
+        /** Stop and wait for background simulation to die, callable from other threads */
         void stop();
 
 

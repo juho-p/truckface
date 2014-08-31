@@ -9,6 +9,9 @@
 
 #include <unordered_map>
 
+#include "../util/task_list.hpp"
+#include "../util/threaded.hpp"
+
 namespace physics {
 
 inline glm::mat4 transform_to_matrix(btTransform transform) {
@@ -40,10 +43,6 @@ struct Cube {
     unique_ptr<btRigidBody> body;
 };
 
-enum WorldStatus {
-    Idle, Running, Stopping
-};
-
 struct WorldRes {
     std::unordered_map<ObjectId, Cube> cubes;
 
@@ -55,7 +54,8 @@ struct WorldRes {
 
     std::mutex changes_mutex;
     std::thread thread;
-    WorldStatus status;
+    util::threaded::Status thread_status;
+    util::TaskList tasks;
 
     WorldRes() {
         broadphase.reset(new btDbvtBroadphase());
@@ -65,7 +65,7 @@ struct WorldRes {
         world.reset(new btDiscreteDynamicsWorld(
                     dispatcher.get(), broadphase.get(), solver.get(),
                     collision_config.get()));
-        status = Idle;
+        thread_status = util::threaded::Idle;
     }
 };
 
@@ -81,33 +81,36 @@ World::~World() {
 }
 
 void World::add_cube(ObjectId id, glm::mat4 transform, float mass, float x, float y, float z) {
-    btTransform trans;
-    trans.setFromOpenGLMatrix(glm::value_ptr(transform));
+    res->tasks.add([=]() {
+        btTransform trans;
+        trans.setFromOpenGLMatrix(glm::value_ptr(transform));
 
-    unique_ptr<MotionState> state(new MotionState(trans, id, this));
+        unique_ptr<MotionState> state(new MotionState(trans, id, this));
 
-    unique_ptr<btBoxShape> shape(new btBoxShape(btVector3(x, y, z)));
-    btVector3 inertia(0,0,0);
-    shape->calculateLocalInertia(mass, inertia);
+        unique_ptr<btBoxShape> shape(new btBoxShape(btVector3(x, y, z)));
+        btVector3 inertia(0,0,0);
+        shape->calculateLocalInertia(mass, inertia);
 
-    unique_ptr<btRigidBody> body(new btRigidBody(
-                btRigidBody::btRigidBodyConstructionInfo(
-                    mass, state.get(), shape.get(), inertia)));
+        unique_ptr<btRigidBody> body(new btRigidBody(
+                    btRigidBody::btRigidBodyConstructionInfo(
+                        mass, state.get(), shape.get(), inertia)));
 
-    auto it = res->cubes.emplace(
-            std::make_pair(id,
-                Cube{ move(shape), move(state), move(body) }));
-    res->world->addRigidBody(it.first->second.body.get());
+        auto it = res->cubes.emplace(
+                std::make_pair(id,
+                    Cube{ move(shape), move(state), move(body) }));
+        res->world->addRigidBody(it.first->second.body.get());
+    });
 }
 
 void World::remove(ObjectId id) {
-    auto cube = res->cubes.find(id);
-    if (cube != res->cubes.end()) {
-        res->world->removeRigidBody(cube->second.body.get());
-        res->cubes.erase(cube);
-    }
+    res->tasks.add([=]() {
+        auto cube = res->cubes.find(id);
+        if (cube != res->cubes.end()) {
+            res->world->removeRigidBody(cube->second.body.get());
+            res->cubes.erase(cube);
+        }
+    });
 }
-
 
 std::map<ObjectId, glm::mat4> World::get_and_reset_changes() {
     std::map<ObjectId, glm::mat4> result;
@@ -123,58 +126,41 @@ void World::update_change(ObjectId id, const glm::mat4& change) {
 
 void World::single_step() {
     // only allow calling this when the thread is not running
-    assert(res->status == Idle);
+    assert(res->thread_status == util::threaded::Idle);
     single_step_();
 }
 
 void World::single_step_() {
+    res->tasks.run();
     // step single fixed time
     this->res->world->stepSimulation(1.0/60.0, 0);
 }
 
 void World::run() {
-    WorldStatus status = res->status;
-    if (status == Running) {
-        // thread already running, do nothing
-        return;
-    } else if (status == Stopping) {
-        // wait for thread to stop before starting it again
-        res->thread.join();
-    }
+    if (!util::threaded::pre_run(res)) return;
 
-    // start the thread
-    assert(res->status == Idle);
-    res->status = Running;
     res->thread = std::thread([this]() {
         // our goal is to step once per 1/60 secs
         // if the simulation is too slow, then tough luck
         // excessive time is spent in sleep
         const auto step_time = std::chrono::milliseconds(1000/60);
-        while (this->res->status == Running) {
+        while (util::threaded::is_running(res)) {
             auto start_time = std::chrono::steady_clock::now();
             single_step_();
 
-            if (this->res->status == Running) {
-                std::this_thread::sleep_until(start_time + step_time);
-            }
+            std::this_thread::sleep_until(start_time + step_time);
         }
-        assert(this->res->status == Stopping);
-        this->res->status = Idle;
+
+        util::threaded::post_run(this->res);
     });
 }
 
 void World::pause() {
-    if (res->status == Running) {
-        res->status = Stopping;
-    }
+    util::threaded::pause(res);
 }
 
 void World::stop() {
-    if (res->status == Running) {
-        pause();
-        res->thread.join();
-        assert(res->status == Idle);
-    }
+    util::threaded::stop(res);
 }
 
 void World::printworld() {
