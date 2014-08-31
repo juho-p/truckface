@@ -1,4 +1,4 @@
-#include "game.hpp"
+#include "common.hpp"
 #include "gfx/gfx.hpp"
 #include "physics/world.hpp"
 

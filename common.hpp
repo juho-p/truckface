@@ -8,6 +8,7 @@
 #include <memory>
 #include <algorithm>
 #include <cassert>
+#include <glm/glm.hpp>
 
 using std::cout;
 using std::cerr;
@@ -24,3 +25,5 @@ class NoCopy {
     public:
     NoCopy() {}
 };
+
+typedef unsigned int ObjectId;

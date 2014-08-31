@@ -1,7 +1,7 @@
 #pragma once
 
 #include <map>
-#include "../game.hpp"
+#include "../common.hpp"
 
 namespace physics {
 
