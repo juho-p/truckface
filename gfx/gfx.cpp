@@ -14,6 +14,8 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
+#include "../util/task_list.hpp"
+
 const static int POSITION = 1,
       NORMAL = 2;
 
@@ -128,6 +130,7 @@ namespace gfx {
 struct GraphicsResources {
     ShaderProgram program;
     VertexArray cube_vao;
+    util::TaskList tasks;
 };
 
 inline void draw_cube(const Uniforms& uniforms, VertexArray& vao,
@@ -213,13 +216,18 @@ Graphics::~Graphics() {
 
 void Graphics::add_cube(ObjectId id, const glm::mat4& transform,
         float x, float y, float z) {
-    this->cubes.emplace(std::make_pair(id, Cube{ transform, glm::vec3(x, y, z) }));
+    res->tasks.add([=]() {
+        this->cubes.emplace(std::make_pair(id, Cube{ transform, glm::vec3(x, y, z) }));
+    });
 }
 void Graphics::remove(ObjectId id) {
-    this->cubes.erase(id);
+    res->tasks.add([=]() {
+        this->cubes.erase(id);
+    });
 }
 
 void Graphics::render() {
+    res->tasks.run();
     check_gl_error("before render");
     res->program.activate();
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -233,6 +241,9 @@ void Graphics::render() {
 }
 
 void Graphics::set_transform(unsigned int index, const glm::mat4& transform) {
-    this->cubes[index].transform = transform;
+    auto cube = this->cubes.find(index);
+    if (cube != this->cubes.end()) {
+        cube->second.transform = transform;
+    }
 }
 }; // end namespace gfx
