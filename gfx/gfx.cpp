@@ -156,8 +156,8 @@ void Graphics::init_cube_vao() {
 void Graphics::init_shaders() {
     ShaderProgram& prog = res->program;
 
-    auto vs = util::read_file("data/render_vertex.glsl");
-    auto fs = util::read_file("data/render_fragment.glsl");
+    auto vs = util::read_file("data/shaders/render_vertex.glsl");
+    auto fs = util::read_file("data/shaders/render_fragment.glsl");
 
     prog.add_shader_from_source(GL_VERTEX_SHADER, &vs[0]);
     prog.add_shader_from_source(GL_FRAGMENT_SHADER, &fs[0]);
@@ -173,7 +173,7 @@ void initialize() {
     }
 
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 2);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
     SDL_GL_SetAttribute(SDL_GL_ACCELERATED_VISUAL, 1);
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
     SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
@@ -240,7 +240,7 @@ void Graphics::render() {
     check_gl_error("after render");
 }
 
-void Graphics::set_transform(unsigned int index, const glm::mat4& transform) {
+void Graphics::set_transform(ObjectId index, const glm::mat4& transform) {
     auto cube = this->cubes.find(index);
     if (cube != this->cubes.end()) {
         cube->second.transform = transform;

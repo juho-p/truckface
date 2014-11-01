@@ -16,14 +16,14 @@ struct Game {
 
     Game() : last_id(0) {
         glm::mat4 groundtrans = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -8.0f, -35.0f));
-        physics.add_cube(0, groundtrans, 0.0, 10, 1, 10);
-        graphics.add_cube(0, groundtrans, 10, 1, 10);
+        physics.add_cube(0, groundtrans, 0.0, 20, 1, 20);
+        graphics.add_cube(0, groundtrans, 20, 1, 20);
     }
 
     ObjectId add_cube(float x, float y, float z) {
         glm::mat4 trans = glm::translate(glm::mat4(1.0f), glm::vec3(x, y, z));
         auto id = new_id();
-        physics.add_cube(id, trans, 1.0);
+        physics.add_cube(id, trans);
         graphics.add_cube(id, trans);
         return id;
     }
@@ -31,6 +31,13 @@ struct Game {
     void remove_cube(ObjectId id) {
         graphics.remove(id);
         physics.remove(id);
+    }
+
+    void sync_changes() {
+        auto changes = physics.get_and_reset_changes();
+        for (const auto& x : changes) {
+            graphics.set_transform(x.first, x.second);
+        }
     }
 
     ObjectId new_id() { return ++last_id; }

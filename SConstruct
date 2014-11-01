@@ -1,5 +1,19 @@
+import sys
+import SCons
+
 def src(s):
     return [env.Object(obj) for obj in s.split()]
+
+PLATFORM = sys.platform
+linux = darwin = False
+if 'linux' in PLATFORM:
+    PLATFORM = 'linux'
+    linux = True
+if PLATFORM == 'darwin':
+    darwin = True
+
+linux_flags = '-DLUA_USE_LINUX'
+osx_flags = '-DLUA_USE_OSX'
 
 AddOption(
     '--debug-build',
@@ -7,21 +21,34 @@ AddOption(
     help='debug build',
     default=False)
 
-common_flags = '-std=c++11 -Wall -Wextra -isystem libraries/bullet -isystem libraries/lua '
+common_flags = '-std=c++11 -Wall -Wextra -isystem libraries/bullet -isystem libraries/lua'
+if linux:
+    common_flags += ' ' + linux_flags
+elif darwin:
+    common_flags += ' ' + osx_flags
+
 if GetOption('debug_build'):
-    flags = common_flags + '-g -O0'
+    flags = common_flags + ' -g -O0'
 else:
-    flags = common_flags + '-O2'
+    flags = common_flags + ' -O2'
 
 env = Environment(
     CXXFLAGS = flags,
     LIBPATH = ['libraries/'],
 )
 
+env['CXXFILESUFFIX']='.c'
+CXX=['.c','.cpp']
+static_obj, shared_obj = SCons.Tool.createObjBuilders(env)
+for suffix in CXX:
+    static_obj.add_action(suffix, SCons.Defaults.CXXAction)
+    shared_obj.add_action(suffix, SCons.Defaults.ShCXXAction)
+
 game = env.Program(
     'game',
-    src('main.cpp gfx/gfx.cpp physics/world.cpp util/util.cpp'),
-    LIBS = ['GL', 'SDL2', 'BulletDynamics', 'BulletCollision', 'LinearMath']
+    src('main.cpp gfx/gfx.cpp physics/world.cpp util/util.cpp scripting/lua.cpp'),
+    LIBS = ['GL', 'SDL2', 'BulletDynamics', 'BulletCollision', 'LinearMath', 'lua'] +
+        ['dl'] if linux else []
 )
 env.Default(game)
 

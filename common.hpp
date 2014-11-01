@@ -26,4 +26,4 @@ class NoCopy {
     NoCopy() {}
 };
 
-typedef unsigned int ObjectId;
+typedef uint64_t ObjectId;

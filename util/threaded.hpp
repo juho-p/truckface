@@ -11,15 +11,10 @@ namespace util {
         typedef std::atomic<Status_> Status;
 
         template<class C>
-        void pause(C* obj) {
-            auto excepted = Running;
-            obj->thread_status.compare_exchange_weak(excepted, Stopping);
-        }
-
-        template<class C>
         void stop(C* obj) {
             if (obj->thread_status != Idle) {
-                pause(obj);
+                auto expected = Running;
+                obj->thread_status.compare_exchange_weak(expected, Stopping);
                 obj->thread.join();
                 assert(obj->thread_status == Idle);
             }

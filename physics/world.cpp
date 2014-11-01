@@ -155,10 +155,6 @@ void World::run() {
     });
 }
 
-void World::pause() {
-    util::threaded::pause(res);
-}
-
 void World::stop() {
     util::threaded::stop(res);
 }

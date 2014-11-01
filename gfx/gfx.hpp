@@ -32,7 +32,7 @@ namespace gfx {
         ~Graphics();
 
         void add_cube(ObjectId id, const glm::mat4& transform,
-                float x=1.f, float y=1.f, float z=1.f);
+                float x=0.5f, float y=0.5f, float z=0.5f);
         void remove(ObjectId id);
         void set_transform(ObjectId id, const glm::mat4& transform);
         void render();
