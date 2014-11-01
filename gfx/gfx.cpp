@@ -106,6 +106,7 @@ static void throw_sdl_error(const char* msg) {
 static void check_sdl_error(const char* msg) {
     const char* err = SDL_GetError();
     if (err && *err) {
+        SDL_ClearError();
         cerr << msg << ": " << err << endl;
     }
 }
@@ -122,6 +123,12 @@ static void init_gl() {
     glEnable(GL_DEPTH_TEST);
 }
 
+inline glm::mat4 projection_matrix(const gfx::Camera& camera) {
+    auto proj = glm::perspective(45.0f, 1.0f, 0.1f, 100.f);
+    auto cam = glm::lookAt(camera.pos, camera.target, camera.up);
+    return proj * cam;
+}
+
 namespace gfx {
 
 #include "vertex_array.hpp"
@@ -132,17 +139,6 @@ struct GraphicsResources {
     VertexArray cube_vao;
     util::TaskList tasks;
 };
-
-inline void draw_cube(const Uniforms& uniforms, VertexArray& vao,
-        glm::mat4 transform, glm::vec3 scale) {
-    glm::mat4 proj = glm::perspective(45.0f, 1.0f, 0.1f, 100.f);
-    auto world_proj = proj * glm::scale(transform, scale);
-
-    glUniformMatrix4fv(uniforms.world, 1, GL_FALSE, glm::value_ptr(transform));
-    glUniformMatrix4fv(uniforms.world_projection, 1, GL_FALSE, glm::value_ptr(world_proj));
-
-    vao.draw();
-}
 
 void Graphics::init_cube_vao() {
     VertexArray& vao = res->cube_vao;
@@ -207,6 +203,10 @@ Graphics::Graphics() {
     this->uniforms.world = res->program.get_uniform_location("world");
     this->uniforms.world_projection = res->program.get_uniform_location("world_projection");
     this->uniforms.light_pos = res->program.get_uniform_location("light_pos");
+
+    camera.pos = glm::vec3(0, 5, 35);
+    camera.target = glm::vec3(0, 0, 0);
+    camera.up = glm::vec3(0, 1, 0);
 }
 
 Graphics::~Graphics() {
@@ -231,10 +231,17 @@ void Graphics::render() {
     check_gl_error("before render");
     res->program.activate();
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    glUniform3f(this->uniforms.light_pos, 1.0f, 0.0f, 0.0f);
+    glUniform3f(this->uniforms.light_pos, 20.0f, 20.0f, 20.0f);
+    auto projection = projection_matrix(camera);
     for (const auto& kv : this->cubes) {
         const Cube& c = kv.second;
-        draw_cube(this->uniforms, res->cube_vao, c.transform, c.scale);
+
+        auto world_proj = projection * glm::scale(c.transform, c.scale);
+
+        glUniformMatrix4fv(uniforms.world, 1, GL_FALSE, glm::value_ptr(c.transform));
+        glUniformMatrix4fv(uniforms.world_projection, 1, GL_FALSE, glm::value_ptr(world_proj));
+
+        res->cube_vao.draw();
     }
     SDL_GL_SwapWindow(this->window);
     check_gl_error("after render");
@@ -246,4 +253,13 @@ void Graphics::set_transform(ObjectId index, const glm::mat4& transform) {
         cube->second.transform = transform;
     }
 }
+
+void Graphics::set_camera(glm::vec3 pos, glm::vec3 target, glm::vec3 up) {
+    res->tasks.add([=]() {
+        this->camera.pos = pos;
+        this->camera.target = target;
+        this->camera.up = up;
+    });
+}
+
 }; // end namespace gfx

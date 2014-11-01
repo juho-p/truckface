@@ -68,6 +68,9 @@ namespace scripting {
             getter_error(i, "string");
             return "";
         }
+        int argc() {
+            return lua_gettop(L);
+        }
 
         template <typename Fn>
         void register_function(const char* name, Fn fn) {
@@ -92,6 +95,4 @@ namespace scripting {
             luaL_dofile(L, file);
         }
     };
-
-    void read_eval_print(Lua& lua);
 }

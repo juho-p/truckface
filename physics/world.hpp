@@ -16,7 +16,7 @@ namespace physics {
         ~World();
 
         /** Add a box to the world, can be called from other threads*/
-        void add_cube(ObjectId id, glm::mat4 transform, float mass=1.0f, float x=0.5f, float y=0.5f, float z=0.5f);
+        void add_cube(ObjectId id, glm::mat4 transform, float mass, float x, float y, float z);
         void remove(ObjectId id);
 
         /** Get the changes to objects, can be called from other threads */

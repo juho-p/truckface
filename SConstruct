@@ -46,7 +46,7 @@ for suffix in CXX:
 
 game = env.Program(
     'game',
-    src('main.cpp gfx/gfx.cpp physics/world.cpp util/util.cpp scripting/lua.cpp'),
+    src('main.cpp gfx/gfx.cpp physics/world.cpp util/util.cpp scripting/lua.cpp scripting/api.cpp'),
     LIBS = ['GL', 'SDL2', 'BulletDynamics', 'BulletCollision', 'LinearMath', 'lua'] +
         ['dl'] if linux else []
 )

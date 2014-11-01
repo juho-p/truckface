@@ -20,8 +20,7 @@ int main() {
     volatile bool keep_running = true;
 
     scripting::Lua lua;
-    scripting::Api lua_api{game, lua};
-    lua_api.register_functions();
+    scripting::register_game_functions(game, lua);
 
     std::thread t([&keep_running, &lua]() {
         lua.runfile("data/scripts/repl.lua");
@@ -29,10 +28,7 @@ int main() {
     });
 
     while (keep_running) {
-        auto changes = game.physics.get_and_reset_changes();
-        for (const auto& x : changes) {
-            game.graphics.set_transform(x.first, x.second);
-        }
+        game.sync_changes();
         game.graphics.render();
     }
 

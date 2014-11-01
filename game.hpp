@@ -1,3 +1,5 @@
+#pragma once
+
 #include "common.hpp"
 #include "gfx/gfx.hpp"
 #include "physics/world.hpp"
@@ -15,16 +17,16 @@ struct Game {
     ObjectId last_id;
 
     Game() : last_id(0) {
-        glm::mat4 groundtrans = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -8.0f, -35.0f));
+        glm::mat4 groundtrans = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, 0.0f));
         physics.add_cube(0, groundtrans, 0.0, 20, 1, 20);
         graphics.add_cube(0, groundtrans, 20, 1, 20);
     }
 
-    ObjectId add_cube(float x, float y, float z) {
+    ObjectId add_cube(float x, float y, float z, float size) {
         glm::mat4 trans = glm::translate(glm::mat4(1.0f), glm::vec3(x, y, z));
         auto id = new_id();
-        physics.add_cube(id, trans);
-        graphics.add_cube(id, trans);
+        physics.add_cube(id, trans, size*size*size, size, size, size);
+        graphics.add_cube(id, trans, size, size, size);
         return id;
     }
 
