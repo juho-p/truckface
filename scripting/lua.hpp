@@ -28,26 +28,12 @@ namespace scripting {
     public:
         int _return_value_count;
 
-        Lua() {
-            L = luaL_newstate();
-            luaL_openlibs(L);
-        }
+        Lua();
         ~Lua() {
             lua_close(L);
         }
 
-        void error(const std::string& msg) {
-            std::cerr << "Lua error: " << msg << std::endl;
-            throw LuaError(msg.c_str());
-        }
-
-        void getter_error(int num, const char* expected_type) {
-            std::stringstream ss;
-            ss << "Parameter "
-                << num << " should be " << expected_type;
-            std::string s = ss.str();
-            error(s);
-        }
+        void error(const std::string& msg);
 
         void push(double num) {
             lua_pushnumber(L, num);
@@ -71,6 +57,9 @@ namespace scripting {
         int argc() {
             return lua_gettop(L);
         }
+        void runfile(const char* file) {
+            luaL_dofile(L, file);
+        }
 
         template <typename Fn>
         void register_function(const char* name, Fn fn) {
@@ -91,8 +80,7 @@ namespace scripting {
             ret(args...);
         }
 
-        void runfile(const char* file) {
-            luaL_dofile(L, file);
-        }
+    private:
+        void getter_error(int num, const char* expected_type);
     };
 }
