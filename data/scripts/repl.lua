@@ -1,26 +1,21 @@
--- source: http://stackoverflow.com/questions/20410082/why-does-the-lua-repl-require-you-to-prepend-an-equal-sign-in-order-to-get-a-val
-
-local function print_results(...)
-    -- This function takes care of nils at the end of results and such.
-    if select('#', ...) > 1 then
-        print(select(2, ...))
-    end
-end
+require('utils.lua')
 
 repeat -- REPL
-    io.write'> '
-    local s = io.read()
+    local s = readline('> ')
     if s == 'exit' then break end
 
-    local f, err = load(s, 'stdin')
-    if err then -- Maybe it's an expression.
-        -- This is a bad hack, but it might work well enough.
-        f = load('return (' .. s .. ')', 'stdin')
+    local f, err = load('_last_repl_result = {' .. s .. '}', 'stdin')
+    if err then
+        f = load(s, 'stdin')
     end
 
     if f then
-        print_results(pcall(f))
+        _last_repl_result = nil
+        pcall(f)
+        if _last_repl_result and #_last_repl_result > 0 then
+            writeline(table.concat(map(tostring, _last_repl_result), '; '))
+        end
     else
-        print(err)
+        writeline(err)
     end
 until false

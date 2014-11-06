@@ -12,7 +12,7 @@ if 'linux' in PLATFORM:
 if PLATFORM == 'darwin':
     darwin = True
 
-linux_flags = '-DLUA_USE_LINUX'
+linux_flags = '-DLUA_USE_LINUX -DUSE_READLINE'
 osx_flags = '-DLUA_USE_OSX'
 
 AddOption(
@@ -48,7 +48,7 @@ game = env.Program(
     'game',
     src('main.cpp gfx/gfx.cpp physics/world.cpp util/util.cpp scripting/lua.cpp scripting/api.cpp'),
     LIBS = ['GL', 'SDL2', 'BulletDynamics', 'BulletCollision', 'LinearMath', 'lua'] +
-        ['dl'] if linux else []
+        ['dl', 'readline'] if linux else []
 )
 env.Default(game)
 
