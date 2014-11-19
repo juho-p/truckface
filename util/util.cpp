@@ -8,7 +8,7 @@
 #include <thread>
 
 namespace util {
-    vector<char> read_file(const char* filename) {
+    string read_file(const char* filename) {
         ifstream ifs(filename, ios::in | ios::binary | ios::ate);
 
         if (!ifs.good()) {
@@ -21,7 +21,7 @@ namespace util {
         vector<char> bytes(fileSize);
         ifs.read(&bytes[0], fileSize);
 
-        return bytes;
+        return string{bytes.begin(), bytes.end()};
     }
 
     void TaskList::add(Task t) {

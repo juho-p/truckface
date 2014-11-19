@@ -155,8 +155,8 @@ void Graphics::init_shaders() {
     auto vs = util::read_file("data/shaders/render_vertex.glsl");
     auto fs = util::read_file("data/shaders/render_fragment.glsl");
 
-    prog.add_shader_from_source(GL_VERTEX_SHADER, &vs[0]);
-    prog.add_shader_from_source(GL_FRAGMENT_SHADER, &fs[0]);
+    prog.add_shader_from_source(GL_VERTEX_SHADER, vs.c_str());
+    prog.add_shader_from_source(GL_FRAGMENT_SHADER, fs.c_str());
 
     prog.bind_attribute_location("position", POSITION);
     prog.bind_attribute_location("normal", NORMAL);
