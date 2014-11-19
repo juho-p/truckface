@@ -23,7 +23,7 @@ int main() {
     scripting::register_game_functions(game, lua);
 
     std::thread t([&keep_running, &lua]() {
-        lua.runfile("data/scripts/repl.lua");
+        lua.runfile("data/scripts/main.lua");
         keep_running = false;
     });
 
