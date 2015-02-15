@@ -42,9 +42,19 @@ struct Cube {
     unique_ptr<MotionState> state;
     unique_ptr<btRigidBody> body;
 };
+struct Car {
+    btRaycastVehicle::btVehicleTuning tuning;
+    unique_ptr<MotionState> state;
+    unique_ptr<btCollisionShape> chassis_shape;
+    unique_ptr<btCompoundShape> compound;
+    unique_ptr<btRigidBody> chassis;
+    unique_ptr<btVehicleRaycaster> ray_caster;
+    unique_ptr<btRaycastVehicle> vehicle;
+};
 
 struct WorldRes {
     std::unordered_map<ObjectId, Cube> cubes;
+    std::unordered_map<ObjectId, unique_ptr<Car>> cars;
 
     unique_ptr<btBroadphaseInterface> broadphase;
     unique_ptr<btCollisionDispatcher> dispatcher;
@@ -102,12 +112,98 @@ void World::add_cube(ObjectId id, glm::mat4 transform, float mass, float x, floa
     });
 }
 
+void World::add_car(ObjectId id, glm::mat4 transform) {
+    res->tasks.add([=]() {
+        const double mass = 800.0;
+        const double wheel_width = 0.4;
+        const double wheel_radius = 0.5;
+        const double connection_height = 1.0;
+        const btVector3 wheel_direction(0,-1,0);
+        const btVector3 wheel_axle(-1,0,0);
+        const double suspension_rest_len = 0.6;
+
+        btTransform trans;
+        trans.setFromOpenGLMatrix(glm::value_ptr(transform));
+
+        unique_ptr<Car> car{new Car};
+
+        car->state.reset(new MotionState(trans, id, this));
+        car->chassis_shape.reset(new btBoxShape(btVector3(1.f,0.5f, 2.0f)));
+        car->compound.reset(new btCompoundShape());
+        btTransform local_trans;
+        local_trans.setIdentity();
+        local_trans.setOrigin(btVector3(0,1,0));
+        car->compound->addChildShape(local_trans, car->chassis_shape.get());
+        btVector3 inertia(0,0,0);
+        car->compound->calculateLocalInertia(mass,inertia);
+        car->chassis.reset(new btRigidBody(
+                btRigidBody::btRigidBodyConstructionInfo(
+                    mass, car->state.get(), car->compound.get(), inertia)));
+        res->world->addRigidBody(car->chassis.get());
+
+        car->ray_caster.reset(new btDefaultVehicleRaycaster(res->world.get()));
+        car->vehicle.reset(new btRaycastVehicle(car->tuning, car->chassis.get(), car->ray_caster.get()));
+		car->chassis->setActivationState(DISABLE_DEACTIVATION);
+        res->world->addVehicle(car->vehicle.get());
+
+        car->vehicle->addWheel(btVector3(1-(0.3*wheel_width), connection_height, 2-wheel_radius), wheel_direction, wheel_axle, suspension_rest_len, wheel_radius, car->tuning, true);
+        car->vehicle->addWheel(btVector3(-1+(0.3*wheel_width), connection_height, 2-wheel_radius), wheel_direction, wheel_axle, suspension_rest_len, wheel_radius, car->tuning, true);
+        car->vehicle->addWheel(btVector3(1-(0.3*wheel_width), connection_height, -2+wheel_radius), wheel_direction, wheel_axle, suspension_rest_len, wheel_radius, car->tuning, false);
+        car->vehicle->addWheel(btVector3(-1+(0.3*wheel_width), connection_height, -2+wheel_radius), wheel_direction, wheel_axle, suspension_rest_len, wheel_radius, car->tuning, false);
+
+        float wheelFriction = 1000;
+        float suspensionStiffness = 20.f;
+        float suspensionDamping = 2.3f;
+        float suspensionCompression = 4.4f;
+        float rollInfluence = 0.1f;
+        for (int i=0;i<car->vehicle->getNumWheels();i++)
+        {
+            btWheelInfo& wheel = car->vehicle->getWheelInfo(i);
+            wheel.m_suspensionStiffness = suspensionStiffness;
+            wheel.m_wheelsDampingRelaxation = suspensionDamping;
+            wheel.m_wheelsDampingCompression = suspensionCompression;
+            wheel.m_frictionSlip = wheelFriction;
+            wheel.m_rollInfluence = rollInfluence;
+        }
+        res->cars[id] = move(car);
+    });
+}
+
+void World::engine(ObjectId cid, bool run) {
+    res->tasks.add([=]() {
+        float force = run ? 100.0 : 0.0;
+        auto it = res->cars.find(cid);
+        if (it != res->cars.end()) {
+            cout << "engine set to " << run << " for " << cid << endl;
+            auto veh = it->second->vehicle.get();
+            veh->applyEngineForce(force, 2);
+            veh->applyEngineForce(force, 3);
+        }
+    });
+}
+void World::steer(ObjectId cid, float val) {
+    res->tasks.add([=]() {
+        auto it = res->cars.find(cid);
+        if (it != res->cars.end()) {
+            cout << "seer set to " << val << " for " << cid << endl;
+            auto veh = it->second->vehicle.get();
+            veh->setSteeringValue(val, 0);
+            veh->setSteeringValue(val, 1);
+        }
+    });
+}
+
 void World::remove(ObjectId id) {
     res->tasks.add([=]() {
         auto cube = res->cubes.find(id);
         if (cube != res->cubes.end()) {
             res->world->removeRigidBody(cube->second.body.get());
             res->cubes.erase(cube);
+        }
+        auto car = res->cars.find(id);
+        if (car != res->cars.end()) {
+            res->world->removeRigidBody(car->second->chassis.get());
+            res->cars.erase(car);
         }
     });
 }

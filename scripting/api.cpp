@@ -43,9 +43,20 @@ void scripting::register_game_functions(Game& game, Lua& l) {
         ObjectId id = game.add_cube(l.num(1), l.num(2), l.num(3), l.argc() > 3 ? l.num(4) : 0.5);
         l.ret(id);
     endfun
+    defun(add_car)
+        ObjectId id = game.add_car(l.num(1), l.num(2), l.num(3));
+        l.ret(id);
+    endfun
     defun(remove_cube)
        game.remove_cube(l.num(1));
     endfun 
+
+    defun(carengine)
+        game.physics.engine(l.num(1), l.num(2));
+    endfun
+    defun(carsteer)
+        game.physics.steer(l.num(1), l.num(2));
+    endfun
 
     defun(setcam)
         game.graphics.set_camera(

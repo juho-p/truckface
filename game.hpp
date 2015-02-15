@@ -30,6 +30,14 @@ struct Game {
         return id;
     }
 
+    ObjectId add_car(float x, float y, float z) {
+        glm::mat4 trans = glm::translate(glm::mat4(1.0f), glm::vec3(x, y, z));
+        auto id = new_id();
+        physics.add_car(id, trans);
+        graphics.add_cube(id, trans, 1.0f, 0.5f, 2.0f);
+        return id;
+    }
+
     void remove_cube(ObjectId id) {
         graphics.remove(id);
         physics.remove(id);

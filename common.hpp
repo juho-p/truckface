@@ -8,6 +8,7 @@
 #include <memory>
 #include <algorithm>
 #include <cassert>
+#define GLM_FORCE_RADIANS
 #include <glm/glm.hpp>
 
 using std::cout;
