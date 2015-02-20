@@ -35,3 +35,18 @@ Set car engine on/of
     carsteer(vehicle_id, steering)
 
 Set car steering
+
+## Building it
+
+Need to have recent version of g++ or clang++. Also need openGL, sdl2 and glm
+libraries. Scons is used for building
+
+First, build bundled libraries
+
+    scons libraries
+
+Then build the game
+
+    scons
+
+You can specify `-j<number of cores>` to speed up compiling (for example, `scons -j4 libraries`)
