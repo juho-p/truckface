@@ -37,12 +37,22 @@ struct MotionState : public btMotionState {
     }
 };
 
-struct Cube {
+struct PObj {
+    virtual ~PObj() {};
+    virtual void remove_from_world(btDiscreteDynamicsWorld* world) = 0;
+};
+
+struct Cube : public PObj {
     unique_ptr<btBoxShape> shape;
     unique_ptr<MotionState> state;
     unique_ptr<btRigidBody> body;
+
+    virtual ~Cube() {}
+    virtual void remove_from_world(btDiscreteDynamicsWorld* world) {
+        world->removeRigidBody(body.get());
+    }
 };
-struct Car {
+struct Car : public PObj {
     btRaycastVehicle::btVehicleTuning tuning;
     unique_ptr<MotionState> state;
     unique_ptr<btCollisionShape> chassis_shape;
@@ -50,11 +60,16 @@ struct Car {
     unique_ptr<btRigidBody> chassis;
     unique_ptr<btVehicleRaycaster> ray_caster;
     unique_ptr<btRaycastVehicle> vehicle;
+
+    virtual ~Car() {}
+    virtual void remove_from_world(btDiscreteDynamicsWorld* world) {
+        world->removeVehicle(vehicle.get());
+        world->removeRigidBody(chassis.get());
+    }
 };
 
 struct WorldRes {
-    std::unordered_map<ObjectId, Cube> cubes;
-    std::unordered_map<ObjectId, unique_ptr<Car>> cars;
+    std::unordered_map<ObjectId, unique_ptr<PObj>> objects;
 
     unique_ptr<btBroadphaseInterface> broadphase;
     unique_ptr<btCollisionDispatcher> dispatcher;
@@ -92,23 +107,22 @@ World::~World() {
 
 void World::add_cube(ObjectId id, glm::mat4 transform, float mass, float x, float y, float z) {
     res->tasks.add([=]() {
+        unique_ptr<Cube> cube{new Cube};
         btTransform trans;
         trans.setFromOpenGLMatrix(glm::value_ptr(transform));
 
-        unique_ptr<MotionState> state(new MotionState(trans, id, this));
+        cube->state.reset(new MotionState(trans, id, this));
 
-        unique_ptr<btBoxShape> shape(new btBoxShape(btVector3(x, y, z)));
+        cube->shape.reset(new btBoxShape(btVector3(x, y, z)));
         btVector3 inertia(0,0,0);
-        shape->calculateLocalInertia(mass, inertia);
+        cube->shape->calculateLocalInertia(mass, inertia);
 
-        unique_ptr<btRigidBody> body(new btRigidBody(
+        cube->body.reset(new btRigidBody(
                     btRigidBody::btRigidBodyConstructionInfo(
-                        mass, state.get(), shape.get(), inertia)));
+                        mass, cube->state.get(), cube->shape.get(), inertia)));
 
-        auto it = res->cubes.emplace(
-                std::make_pair(id,
-                    Cube{ move(shape), move(state), move(body) }));
-        res->world->addRigidBody(it.first->second.body.get());
+        res->world->addRigidBody(cube->body.get());
+        res->objects[id] = move(cube);
     });
 }
 
@@ -116,8 +130,8 @@ void World::add_car(ObjectId id, glm::mat4 transform) {
     res->tasks.add([=]() {
         const double mass = 800.0;
         const double wheel_width = 0.4;
-        const double wheel_radius = 0.5;
-        const double connection_height = 1.0;
+        const double wheel_radius = 1.5;
+        const double connection_height = 1.2;
         const btVector3 wheel_direction(0,-1,0);
         const btVector3 wheel_axle(-1,0,0);
         const double suspension_rest_len = 0.6;
@@ -165,17 +179,18 @@ void World::add_car(ObjectId id, glm::mat4 transform) {
             wheel.m_frictionSlip = wheelFriction;
             wheel.m_rollInfluence = rollInfluence;
         }
-        res->cars[id] = move(car);
+        res->objects[id] = move(car);
     });
 }
 
 void World::engine(ObjectId cid, bool run) {
     res->tasks.add([=]() {
         float force = run ? 100.0 : 0.0;
-        auto it = res->cars.find(cid);
-        if (it != res->cars.end()) {
+        auto it = res->objects.find(cid);
+        if (it != res->objects.end()) {
             cout << "engine set to " << run << " for " << cid << endl;
-            auto veh = it->second->vehicle.get();
+            auto car = dynamic_cast<Car*>(it->second.get());
+            auto veh = car->vehicle.get();
             veh->applyEngineForce(force, 2);
             veh->applyEngineForce(force, 3);
         }
@@ -183,10 +198,11 @@ void World::engine(ObjectId cid, bool run) {
 }
 void World::steer(ObjectId cid, float val) {
     res->tasks.add([=]() {
-        auto it = res->cars.find(cid);
-        if (it != res->cars.end()) {
+        auto it = res->objects.find(cid);
+        if (it != res->objects.end()) {
             cout << "seer set to " << val << " for " << cid << endl;
-            auto veh = it->second->vehicle.get();
+            auto car = dynamic_cast<Car*>(it->second.get());
+            auto veh = car->vehicle.get();
             veh->setSteeringValue(val, 0);
             veh->setSteeringValue(val, 1);
         }
@@ -195,15 +211,11 @@ void World::steer(ObjectId cid, float val) {
 
 void World::remove(ObjectId id) {
     res->tasks.add([=]() {
-        auto cube = res->cubes.find(id);
-        if (cube != res->cubes.end()) {
-            res->world->removeRigidBody(cube->second.body.get());
-            res->cubes.erase(cube);
-        }
-        auto car = res->cars.find(id);
-        if (car != res->cars.end()) {
-            res->world->removeRigidBody(car->second->chassis.get());
-            res->cars.erase(car);
+        auto it = res->objects.find(id);
+        if (it != res->objects.end()) {
+            auto obj = it->second.get();
+            obj->remove_from_world(res->world.get());
+            res->objects.erase(it);
         }
     });
 }
