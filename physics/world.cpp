@@ -6,13 +6,18 @@
 
 #include <thread>
 #include <mutex>
+#include <atomic>
 
 #include <unordered_map>
 
 #include "../util/task_list.hpp"
-#include "../util/threaded.hpp"
 
 namespace physics {
+
+enum Status_ {
+    Idle, Running, Stopping
+};
+typedef std::atomic<Status_> Status;
 
 inline glm::mat4 transform_to_matrix(btTransform transform) {
     glm::mat4 res;
@@ -79,7 +84,7 @@ struct WorldRes {
 
     std::mutex changes_mutex;
     std::thread thread;
-    util::threaded::Status thread_status;
+    Status thread_status;
     util::TaskList tasks;
 
     WorldRes() {
@@ -90,7 +95,7 @@ struct WorldRes {
         world.reset(new btDiscreteDynamicsWorld(
                     dispatcher.get(), broadphase.get(), solver.get(),
                     collision_config.get()));
-        thread_status = util::threaded::Idle;
+        thread_status = Idle;
     }
 };
 
@@ -234,7 +239,7 @@ void World::update_change(ObjectId id, const glm::mat4& change) {
 
 void World::single_step() {
     // only allow calling this when the thread is not running
-    assert(res->thread_status == util::threaded::Idle);
+    assert(res->thread_status == Idle);
     single_step_();
 }
 
@@ -245,26 +250,44 @@ void World::single_step_() {
 }
 
 void World::run() {
-    if (!util::threaded::pre_run(res)) return;
+    auto status = res->thread_status.load();
+    if (status == Running) {
+        // thread already running, do nothing
+        return;
+    } else if (status == Stopping) {
+        // wait for thread to stop before starting it again
+        this->stop();
+    }
+
+    // start the thread
+    assert(res->thread_status == Idle);
+    res->thread_status.store(Running);
 
     res->thread = std::thread([this]() {
         // our goal is to step once per 1/60 secs
         // if the simulation is too slow, then tough luck
         // excessive time is spent in sleep
         const auto step_time = std::chrono::milliseconds(1000/60);
-        while (util::threaded::is_running(res)) {
+        while (res->thread_status == Running) {
             auto start_time = std::chrono::steady_clock::now();
             single_step_();
 
             std::this_thread::sleep_until(start_time + step_time);
         }
 
-        util::threaded::post_run(this->res);
+        auto expected = Stopping;
+        bool ok = res->thread_status.compare_exchange_weak(expected, Idle);
+        assert(ok);
     });
 }
 
 void World::stop() {
-    util::threaded::stop(res);
+    if (res->thread_status != Idle) {
+        auto expected = Running;
+        res->thread_status.compare_exchange_weak(expected, Stopping);
+        res->thread.join();
+        assert(res->thread_status == Idle);
+    }
 }
 
 void World::printworld() {
