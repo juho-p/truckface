@@ -86,6 +86,7 @@ struct WorldRes {
     std::thread thread;
     Status thread_status;
     util::TaskList tasks;
+    std::vector<std::pair<ObjectId, glm::mat4>> step_changes;
 
     WorldRes() {
         broadphase.reset(new btDbvtBroadphase());
@@ -225,16 +226,15 @@ void World::remove(ObjectId id) {
     });
 }
 
-std::map<ObjectId, glm::mat4> World::get_and_reset_changes() {
-    std::map<ObjectId, glm::mat4> result;
+std::unordered_map<ObjectId, glm::mat4> World::get_and_reset_changes() {
+    std::unordered_map<ObjectId, glm::mat4> result;
     std::lock_guard<std::mutex> lock(res->changes_mutex);
     this->changes.swap(result);
     return result;
 }
 
 void World::update_change(ObjectId id, const glm::mat4& change) {
-    std::lock_guard<std::mutex> lock(res->changes_mutex);
-    changes[id] = change;
+    res->step_changes.push_back(std::make_pair(id, change));
 }
 
 void World::single_step() {
@@ -247,6 +247,13 @@ void World::single_step_() {
     res->tasks.run();
     // step single fixed time
     this->res->world->stepSimulation(1.0/60.0, 0);
+    {
+        std::lock_guard<std::mutex> lock(res->changes_mutex);
+        for (auto change : res->step_changes) {
+            this->changes[change.first] = change.second;
+        }
+    }
+    res->step_changes.clear();
 }
 
 void World::run() {

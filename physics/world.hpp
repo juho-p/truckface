@@ -1,6 +1,6 @@
 #pragma once
 
-#include <map>
+#include <unordered_map>
 #include "../common.hpp"
 
 namespace physics {
@@ -8,7 +8,7 @@ namespace physics {
     struct WorldRes;
     class World {
         WorldRes* res;
-        std::map<ObjectId, glm::mat4> changes;
+        std::unordered_map<ObjectId, glm::mat4> changes;
         void single_step_();
 
     public:
@@ -24,7 +24,7 @@ namespace physics {
         void remove(ObjectId id);
 
         /** Get the changes to objects, can be called from other threads */
-        std::map<ObjectId, glm::mat4> get_and_reset_changes();
+        std::unordered_map<ObjectId, glm::mat4> get_and_reset_changes();
 
         /** Perform single simulation step */
         void single_step();
