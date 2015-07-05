@@ -48,7 +48,7 @@ game = env.Program(
     'game',
     src('main.cpp gfx/gfx.cpp physics/world.cpp util/util.cpp scripting/lua.cpp scripting/api.cpp'),
     LIBS = ['GL', 'SDL2', 'BulletDynamics', 'BulletCollision', 'LinearMath', 'lua'] +
-        ['dl', 'readline'] if linux else []
+        ['dl', 'readline', 'pthread'] if linux else []
 )
 env.Default(game)
 
